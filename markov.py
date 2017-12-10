@@ -3,6 +3,8 @@ from __future__ import division
 import numpy as np
 from collections import Counter
 import gzip
+import re
+import math
 
 
 def train_markov_chain(sequences):
@@ -24,6 +26,7 @@ def train_markov_chain(sequences):
     for sequence in sequences:
         # split strings by whitespace
         tokens = sequence.split()
+        #tokens = re.sub("[^a-zA-Z ]+", "", sequence).split()
         train_data += (tokens + ['\n'])  # '\n' is used to signal the end of a sequence
         all_tokens.update(tokens)
 
@@ -106,16 +109,20 @@ def train_markov_chain(sequences):
 
     model['transitions'] = transitions
 
-    return model['transitions']
+    return model
 
 
 def score_line(line, model):
     words = line.split()
-    score = 0
+    score = 1
     for word in range(len(words)-1):
         if words[word] in model:
             if words[word+1] in model[words[word]]:
-                score += (model[words[word]][words[word+1]])
+                score *= (model[words[word]][words[word+1]])
+            else:
+                score *= 1/len(model)
+        else:
+            score *= 1/len(model)
     return score
     
 def sample_markov_chain(model, num_sequences, max_length=500):
