@@ -6,7 +6,7 @@ from keras.utils import to_categorical
 from keras.layers import Dense, Dropout, LSTM, Embedding, GRU
 import RNN_preprocessing as RPP
 
-seq_size = 100
+seq_size = 15
 sample_length =500
 char_level=True
 batch_size = 256
@@ -30,6 +30,6 @@ model.compile(loss='sparse_categorical_crossentropy',  optimizer='adam', metrics
 
 
 history = model.fit(x_seq, y_seq, verbose=1, epochs=epochs, batch_size=batch_size)
-score = model.evaluate(x_seq, y_seq, batch_size=128)
+score = model.evaluate(x_seq, y_seq, batch_size=2048)
 
 print(score)
