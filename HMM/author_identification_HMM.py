@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import math
 import markovModel
+import multiprocessing
 
 def loadData():
     train_df = np.array(pd.read_csv('../data/train.csv'))
@@ -14,31 +15,25 @@ def crossSplit(data, splitCount):
     #round length so it fits the split count, will lose at most splitCount-1 entries
     length = math.floor(data.shape[0]/splitCount)*splitCount
     splitLength = int(length / splitCount)
-    #print(splitLength)
-    #print(length)
+
     splitData = np.empty([splitCount], "object")
     for split in range(splitCount):
         splitStart= int(split/splitCount * length)
         splitEnd = splitStart + splitLength
-        #print(splitStart, splitEnd)
         splitData[split] = data[splitStart:splitEnd,:]
-        #test_split = int(.9*total_data.shape[0])
-        #train_data = total_data[:test_split,:]
     return splitData
 
 def setSplit(splitData, splitNumber):
     validateData = splitData[splitNumber];
     trainData = np.concatenate(np.delete(splitData, splitNumber));
-    return validateData, trainData
-    
+    return trainData, validateData
+   
             
 def trainModel(authors, train_data, depth=1, char_level=False):
     models = dict()
     author_prob = dict()
-    #print(train_data.shape)
     unique, counts = np.unique(train_data[:,2], return_counts=True)
     author_prob = dict(zip(unique, counts/train_data.shape[0]))
-    #print(author_prob)
     for author in authors:
         models[author] = markovModel.train_markov_chain(train_data[train_data[:,-1] == author,1],depth=depth, char_level=char_level)
     return models, author_prob
@@ -57,25 +52,37 @@ def testAcc(authors, models, data, author_prob, depth):
         author_max = authors[index_max]
         correct += int(author_max == row[2])
     return correct/len(data)
+ 
+ 
+def testSplit(args):
+    trainData, validateData, authors, depth, char_level, split = args
+    model, author_prob = trainModel(authors, trainData, depth, char_level)
+    splitAcc = testAcc(authors,model,validateData, author_prob, depth)
+    print("split -", str(split), "acc -", str(splitAcc) , str(trainData.shape), str(validateData.shape))
+    return splitAcc
 
 
 #print()
 def markovModelTest(splitCount, depth, char_level):
-    print("split count - ", str(splitCount), "\ndepth - ", str(depth), "\nchar_level - ", str(char_level))
+    print("split count -", str(splitCount), "\ndepth -", str(depth), "\nchar_level -", str(char_level))
     train_data, test_data, authors = loadData()
     if(splitCount == 0):
         splitCount = train_data.shape[0]
     splitData = crossSplit(train_data, splitCount)
     correct = 0
+    inList = []
+    print(str(multiprocessing.cpu_count()), " cores found")
     for split in range(splitCount):
-        print("split %d out of %d - %d" % (split,splitCount,split/splitCount*100), "%")
-        validateData, trainData = setSplit(splitData,split)
-        model, author_prob = trainModel(authors, trainData, depth, char_level)
-        splitAcc = testAcc(authors,model,validateData, author_prob, depth)
-        correct += splitAcc
-        print("split acc - ", splitAcc)
-    correct /= splitCount
+        trainData, validateData =  setSplit(splitData,split)
+        inList.append((trainData, validateData, authors, depth, char_level, split))
+        
+     
+    with multiprocessing.Pool(processes=None) as pool:
+        correct = pool.map(testSplit, inList)
+    
+    correct = np.mean(correct)
     print("average acc- ", str(correct))
     return correct
 
-markovModelTest(splitCount = 10, depth = 2, char_level=False)
+if __name__ == '__main__':
+    markovModelTest(splitCount = 10, depth =  1, char_level=False)
